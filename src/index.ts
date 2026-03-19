@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { execa } from 'execa';
 import { consola } from "consola";
 import { Command } from "commander";
@@ -24,9 +25,14 @@ const runCLI = () => {
 
       if (p.isCancel(yes) || !yes) {
         consola.info("キャンセルしました");
+        return;
       };
 
       await execa("nix", ["profile", "install", `nixpkgs#${packagename}`], { stdio: "inherit" });
     };
   });
+
+  program.parse();
 }
+
+runCLI();
