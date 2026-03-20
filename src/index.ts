@@ -13,23 +13,32 @@ const runCLI = () => {
   .command("find")
   .argument("<packagename>")
   .action(async(packagename) => {
+    const spinner = p.spinner();
+    spinner.start("検索中...");
     const result = await execa("nix", ["search", "nixpkgs", packagename, "--json"]);
+    spinner.stop("検索完了！");
     const raw = JSON.parse(result.stdout);
-
     if (Object.keys(raw).length === 0) {
       consola.error(`"${packagename}"は見つかりませんでした`);
-    } else {
-      const yes = await p.confirm({
-        message: `nixpkgs#${packagename} をインストールしますか？`,
-      });
-
-      if (p.isCancel(yes) || !yes) {
-        consola.info("キャンセルしました");
-        return;
-      };
-
-      await execa("nix", ["profile", "install", `nixpkgs#${packagename}`], { stdio: "inherit" });
-    };
+      return;
+    }
+    const packages = Object.entries(raw).map(([key, pkg]: [string, any]) => {
+      const attrName = key.replace(/^legacyPackages\.[^.]+\./, "");
+      return { attrName, description: pkg.description ?? "" };
+    });
+    const chosen = await p.select({
+      message: "パッケージを選んでください",
+      options: packages.map((pkg) => ({
+        value: pkg.attrName,
+        label: pkg.attrName,
+        hint: pkg.description,
+      })),
+    });
+    if (p.isCancel(chosen)) {
+      consola.info("キャンセルしました");
+      return;
+    }
+    await execa("nix", ["profile", "install", `nixpkgs#${chosen}`], { stdio: "inherit" });
   });
 
   program.parse();
