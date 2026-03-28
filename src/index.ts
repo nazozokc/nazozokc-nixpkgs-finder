@@ -4,7 +4,17 @@ import { consola } from "consola";
 import { Command } from "commander";
 import * as p from '@clack/prompts';
 
-const runCLI = () => {
+interface Package {
+  attrName: string;
+  description: string;
+}
+
+interface NixSearchResult {
+  description?: string;
+  [key: string]: unknown;
+}
+
+const runCLI = (): void => {
   const program = new Command();
 
   program.name("nixfinder").description("find to nixpkgs").version("v1.0.0")
@@ -15,14 +25,21 @@ const runCLI = () => {
   .action(async(packagename) => {
     const spinner = p.spinner();
     spinner.start("検索中...");
-    const result = await execa("nix", ["search", "nixpkgs", packagename, "--json"]);
+    let result;
+    try {
+      result = await execa("nix", ["search", "nixpkgs", packagename, "--json"]);
+    } catch (error) {
+      spinner.stop();
+      consola.error(`検索中にエラーが発生しました: ${error}`);
+      return;
+    }
     spinner.stop("検索完了！");
-    const raw = JSON.parse(result.stdout);
+    const raw = JSON.parse(result.stdout) as Record<string, NixSearchResult>;
     if (Object.keys(raw).length === 0) {
       consola.error(`"${packagename}"は見つかりませんでした`);
       return;
     }
-    const packages = Object.entries(raw).map(([key, pkg]: [string, any]) => {
+    const packages: Package[] = Object.entries(raw).map(([key, pkg]) => {
       const attrName = key.replace(/^legacyPackages\.[^.]+\./, "");
       return { attrName, description: pkg.description ?? "" };
     });
